@@ -2,53 +2,54 @@ import streamlit as st
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
-st.set_page_config(page_title="Diagnòstic FQ amb IA", layout="centered")
+# TÍTOL DE L’APP
 st.title("🧬 Diagnòstic de Fibrosi Quística amb Intel·ligència Artificial")
 st.write("Introdueix les dades del pacient i la IA estimarà si pot patir Fibrosi Quística.")
 
+# CARREGAR LA BASE DE DADES
 df = pd.read_excel("dataset_fq.csv (2).xlsx")
 
-for col in df.columns:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
+# ELIMINAR COLUMNES QUE NO SÓN NUMÈRIQUES
+df = df.select_dtypes(include=["number"])
 
-df = df.fillna(df.median())
+# SEPARAR VARIABLES I RESULTAT
+X = df.drop("diagnostic", axis=1)
+y = df["diagnostic"]
 
-X = df.drop(["Diagnostic FQ IA", "ID Pacient"], axis=1)
-y = df["Diagnostic FQ IA"]
-
+# ENTRENAR EL MODEL
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X, y)
 
+# FORMULARI DEL PACIENT
 st.header("📋 Dades del pacient")
 
-edat = st.number_input("Edat", 0, 100, 10)
-sexe = st.selectbox("Sexe (0 = Masculí, 1 = Femení)", [0, 1])
-clor = st.number_input("Clor en test de la suor (mmol/L)", 0, 150, 30)
-mutacio = st.selectbox("Mutació CFTR (0 = No, 1 = Sí)", [0, 1])
+edat = st.number_input("Edat del pacient", 0, 120, 10)
+sexe = st.number_input("Sexe (0 = Masculí, 1 = Femení)", 0, 1, 0)
+clor = st.number_input("Clor en test de la suor (mmol/L)", 0, 200, 30)
+mutacio = st.number_input("Mutació CFTR (0 = No, 1 = Sí)", 0, 1, 0)
 fev1 = st.number_input("FEV1 (%)", 0, 150, 100)
-pancreas = st.selectbox("Insuficiència pancreàtica", [0, 1])
 
-pseudomonas = st.selectbox("Pseudomonas", [0, 1])
-staphylococcus = st.selectbox("Staphylococcus", [0, 1])
-haemophilus = st.selectbox("Haemophilus", [0, 1])
-burkholderia = st.selectbox("Burkholderia", [0, 1])
-stenotrophomonas = st.selectbox("Stenotrophomonas", [0, 1])
-aspergillus = st.selectbox("Aspergillus", [0, 1])
-cap = st.selectbox("Cap infecció", [0, 1])
+pancrees = st.number_input("Insuficiència pancreàtica (0 = No, 1 = Sí)", 0, 1, 0)
+pseudomonas = st.number_input("Pseudomonas (0 = No, 1 = Sí)", 0, 1, 0)
+staphylococcus = st.number_input("Staphylococcus (0 = No, 1 = Sí)", 0, 1, 0)
+haemophilus = st.number_input("Haemophilus (0 = No, 1 = Sí)", 0, 1, 0)
+burkholderia = st.number_input("Burkholderia (0 = No, 1 = Sí)", 0, 1, 0)
+stenotrophomonas = st.number_input("Stenotrophomonas (0 = No, 1 = Sí)", 0, 1, 0)
+aspergillus = st.number_input("Aspergillus (0 = No, 1 = Sí)", 0, 1, 0)
+cap_infeccio = st.number_input("Sense infecció (0 = No, 1 = Sí)", 0, 1, 0)
 
-st.header("📋 Dades del pacient")
+# BOTÓ DE DIAGNÒSTIC
+if st.button("🔍 Fer diagnòstic"):
+    dades = [[
+        edat, sexe, clor, mutacio, fev1,
+        pancreas, pseudomonas, staphylococcus,
+        haemophilus, burkholderia,
+        stenotrophomonas, aspergillus, cap_infeccio
+    ]]
 
-edat = st.number_input("Edat", 0, 100, 10)
-sexe = st.selectbox("Sexe (0 = Masculí, 1 = Femení)", [0, 1])
-clor = st.number_input("Clor en test de la suor (mmol/L)", 0, 150, 30)
-mutacio = st.selectbox("Mutació CFTR (0 = No, 1 = Sí)", [0, 1])
-fev1 = st.number_input("FEV1 (%)", 0, 150, 100)
-pancreas = st.selectbox("Insuficiència pancreàtica", [0, 1])
+    resultat = model.predict(dades)
 
-pseudomonas = st.selectbox("Pseudomonas", [0, 1])
-staphylococcus = st.selectbox("Staphylococcus", [0, 1])
-haemophilus = st.selectbox("Haemophilus", [0, 1])
-burkholderia = st.selectbox("Burkholderia", [0, 1])
-stenotrophomonas = st.selectbox("Stenotrophomonas", [0, 1])
-aspergillus = st.selectbox("Aspergillus", [0, 1])
-cap = st.selectbox("Cap infecció", [0, 1])
+    if resultat[0] == 1:
+        st.error("⚠️ Resultat: POSSIBLE Fibrosi Quística")
+    else:
+        st.success("✅ Resultat: NO compatible amb Fibrosi Quística")
