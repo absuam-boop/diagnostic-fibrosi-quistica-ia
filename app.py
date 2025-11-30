@@ -1,3 +1,7 @@
+import streamlit as st
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+
 st.header("📋 Dades del pacient")
 
 edat = st.number_input("Edat", 0, 100, 10, key="edat")
