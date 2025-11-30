@@ -3,24 +3,34 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
 # -----------------------------
-# CARREGAR BASE DE DADES
+# CARREGAR I NETEJAR BASE DE DADES
 # -----------------------------
 df = pd.read_excel("dataset_fq.csv (2).xlsx")
+
+# Eliminar la columna ID
+df = df.drop(columns=["ID Pacient"])
+
+# Convertir totes les columnes a numèriques
+for col in df.columns:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# Omplir possibles valors buits amb 0
+df = df.fillna(0)
 
 # Variable objectiu
 y = df["Diagnostic FQ IA"]
 
 # Variables d'entrada
-X = df.drop(columns=["ID Pacient", "Diagnostic FQ IA"])
+X = df.drop(columns=["Diagnostic FQ IA"])
 
 # -----------------------------
-# ENTRENAR EL MODEL
+# ENTRENAR MODEL
 # -----------------------------
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X, y)
 
 # -----------------------------
-# INTERFÍCIE STREAMLIT
+# INTERFÍCIE DE L’APP
 # -----------------------------
 st.title("🧬 Diagnòstic de Fibrosi Quística amb IA")
 st.write("Introdueix les dades del pacient:")
@@ -30,7 +40,7 @@ st.write("Introdueix les dades del pacient:")
 # -----------------------------
 edat = st.number_input("Edat", 0, 100, 10)
 sexe = st.number_input("Sexe (0 = Masculí, 1 = Femení)", 0, 1, 0)
-clor = st.number_input("Clor test suor (mmol/L)", 0, 200, 30)
+clor = st.number_input("Clor en test de la suor (mmol/L)", 0, 200, 30)
 mutacio = st.number_input("Mutació CFTR (0 = No, 1 = Sí)", 0, 1, 0)
 fev1 = st.number_input("FEV1 (%)", 0, 150, 100)
 pancrees = st.number_input("Insuficiència pancreàtica", 0, 1, 0)
@@ -57,7 +67,7 @@ talla = st.number_input("Talla (cm)", 30, 220, 140)
 tos = st.number_input("Tos crònica", 0, 1, 0)
 
 # -----------------------------
-# BOTÓ DIAGNÒSTIC
+# BOTÓ DE DIAGNÒSTIC
 # -----------------------------
 if st.button("🔍 Fer diagnòstic"):
     dades_pacient = [[
