@@ -13,8 +13,9 @@ df = pd.read_excel("dataset_fq.csv (2).xlsx")
 df = df.select_dtypes(include=["number"])
 
 # SEPARAR VARIABLES I RESULTAT
-X = df.drop("diagnostic", axis=1)
-y = df["diagnostic"]
+columna_resultat = df.columns[-1]   # agafa l’última columna automàticament
+X = df.drop(columna_resultat, axis=1)
+y = df[columna_resultat]
 
 # ENTRENAR EL MODEL
 model = RandomForestClassifier(n_estimators=100, random_state=42)
