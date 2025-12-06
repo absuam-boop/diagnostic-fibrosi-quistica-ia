@@ -2,86 +2,61 @@ import streamlit as st
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
-# -----------------------------
-# CARREGAR I NETEJAR BASE DE DADES
-# -----------------------------
-df = pd.read_excel("dataset_fq.csv (2).xlsx")
+st.set_page_config(page_title="Diagnòstic FQ IA", page_icon="🧬", layout="centered")
 
-# Eliminar la columna ID
-df = df.drop(columns=["ID Pacient"])
+st.markdown("<h1 style='text-align:center;'>🧬 Diagnòstic de Fibrosi Quística amb IA</h1>", unsafe_allow_html=True)
+st.write("Introdueix les dades del pacient i la IA estimarà si pot patir Fibrosi Quística.")
 
-# Convertir totes les columnes a numèriques
-for col in df.columns:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
+# -------------------------------------------------------------------
+# 1. LLEGIR DATASET
+# -------------------------------------------------------------------
+df = pd.read_excel("dataset_fq_definitiu.xlsx")
 
-# Omplir possibles valors buits amb 0
-df = df.fillna(0)
-
-# Variable objectiu
+# Separar X i y
 y = df["Diagnostic FQ IA"]
-
-# Variables d'entrada
 X = df.drop(columns=["Diagnostic FQ IA"])
 
-# -----------------------------
-# ENTRENAR MODEL
-# -----------------------------
-model = RandomForestClassifier(n_estimators=100, random_state=42)
+# -------------------------------------------------------------------
+# 2. ENTRENAR MODEL
+# -------------------------------------------------------------------
+model = RandomForestClassifier(
+    n_estimators=400,
+    random_state=42,
+    class_weight="balanced"
+)
 model.fit(X, y)
 
-# -----------------------------
-# INTERFÍCIE DE L’APP
-# -----------------------------
-st.title("🧬 Diagnòstic de Fibrosi Quística amb IA")
-st.write("Introdueix les dades del pacient:")
+# -------------------------------------------------------------------
+# 3. FORMULARI PACIENT
+# -------------------------------------------------------------------
+st.subheader("📋 Dades del pacient")
 
-# -----------------------------
-# FORMULARI
-# -----------------------------
-edat = st.number_input("Edat", 0, 100, 10)
-sexe = st.number_input("Sexe (0 = Masculí, 1 = Femení)", 0, 1, 0)
-clor = st.number_input("Clor en test de la suor (mmol/L)", 0, 200, 30)
-mutacio = st.number_input("Mutació CFTR (0 = No, 1 = Sí)", 0, 1, 0)
-fev1 = st.number_input("FEV1 (%)", 0, 150, 100)
-pancrees = st.number_input("Insuficiència pancreàtica", 0, 1, 0)
+inputs = {}
 
-pseudomonas = st.number_input("Pseudomonas", 0, 1, 0)
-staphylococcus = st.number_input("Staphylococcus", 0, 1, 0)
-haemophilus = st.number_input("Haemophilus", 0, 1, 0)
-burkholderia = st.number_input("Burkholderia", 0, 1, 0)
-stenotrophomonas = st.number_input("Stenotrophomonas", 0, 1, 0)
-aspergillus = st.number_input("Aspergillus", 0, 1, 0)
-cap = st.number_input("Cap infecció", 0, 1, 0)
-
-fvc = st.number_input("FVC", 0, 150, 100)
-hepatopatia = st.number_input("Hepatopatia", 0, 1, 0)
-imc = st.number_input("IMC", 0.0, 40.0, 18.0)
-exacerbacions = st.number_input("Nº Exacerbacions Any", 0, 20, 0)
-pes = st.number_input("Pes (kg)", 0.0, 150.0, 40.0)
-polips = st.number_input("Pòlips nasals", 0, 1, 0)
-reflux = st.number_input("Reflux gastroesofàgic", 0, 1, 0)
-saturacio = st.number_input("Saturació O2 (%)", 0, 100, 98)
-sibilancies = st.number_input("Sibilàncies", 0, 1, 0)
-sinusitis = st.number_input("Sinusitis crònica", 0, 1, 0)
-talla = st.number_input("Talla (cm)", 30, 220, 140)
-tos = st.number_input("Tos crònica", 0, 1, 0)
-
-# -----------------------------
-# BOTÓ DE DIAGNÒSTIC
-# -----------------------------
-if st.button("🔍 Fer diagnòstic"):
-    dades_pacient = [[
-        edat, sexe, clor, mutacio, fev1, pancrees,
-        pseudomonas, staphylococcus, haemophilus,
-        burkholderia, stenotrophomonas, aspergillus, cap,
-        fvc, hepatopatia, imc, exacerbacions, pes,
-        polips, reflux, saturacio, sibilancies,
-        sinusitis, talla, tos
-    ]]
-
-    prediccio = model.predict(dades_pacient)[0]
-
-    if prediccio == 1:
-        st.error("⚠️ Resultat: POSSIBLE FIBROSI QUÍSTICA")
+for col in X.columns:
+    if col == "edat":
+        inputs[col] = st.number_input("Edat", 0, 120, 10)
+    elif col == "sexe":
+        inputs[col] = st.selectbox("Sexe", [0, 1], format_func=lambda x: "Home" if x == 0 else "Dona")
+    elif col == "clor_suor":
+        inputs[col] = st.number_input("Clor en test de la suor (mmol/L)", 0, 200, 30)
+    elif col == "mutacio_cftr":
+        inputs[col] = st.selectbox("Mutació CFTR", [0, 1])
     else:
-        st.success("✅ Resultat: NO compatible amb FQ")
+        # totes les infeccions i altres variables binary 0/1
+        inputs[col] = st.selectbox(col.replace("_", " ").capitalize(), [0, 1])
+
+# Convertir a DataFrame d'UNA sola fila amb columnes EXACTES
+dades_pacient = pd.DataFrame([inputs])[X.columns]
+
+# -------------------------------------------------------------------
+# 4. BOTÓ PREDECCIÓ
+# -------------------------------------------------------------------
+if st.button("🔍 Fer diagnòstic"):
+    pred = model.predict(dades_pacient)[0]
+    prob = model.predict_proba(dades_pacient)[0][1] * 100
+
+    if pred == 1:
+        st.success(f"🧪 **Possible Fibrosi Quística** ({prob:.1f}% de probabilitat)")
+    else:
+        st.info(f"✅ **No compatible amb Fibrosi Quística** ({prob:.1f}% de probabilitat)")
