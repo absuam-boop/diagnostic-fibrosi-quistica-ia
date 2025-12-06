@@ -41,11 +41,20 @@ h1 {
 """, unsafe_allow_html=True)
 
 # -----------------------------------------
-# CARREGAR DADES
+# CARREGAR DADES DES D'UN ARXIU PUJAT
 # -----------------------------------------
-df = pd.read_excel("dataset_fq_definitiu.xlsx")
+st.subheader("📂 Carrega el dataset")
 
-df = df.drop(columns=["ID Pacient"])
+uploaded = st.file_uploader("Puja el dataset (Excel)", type=["xlsx"])
+
+if uploaded is None:
+    st.warning("Puja l'arxiu 'dataset_fq_definitiu.xlsx' per iniciar l'app.")
+    st.stop()
+
+df = pd.read_excel(uploaded)
+
+# Neteja bàsica
+df = df.drop(columns=["ID Pacient"], errors="ignore")
 for col in df.columns:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 df = df.fillna(0)
