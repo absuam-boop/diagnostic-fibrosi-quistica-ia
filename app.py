@@ -1,131 +1,166 @@
 import streamlit as st
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 
-# ------------------------------------
-# ⭐ Estil CSS modern
-# ------------------------------------
+st.set_page_config(page_title="Diagnòstic Fibrosi Quística", layout="centered")
+
+# -------------------------------
+# ESTILS CSS
+# -------------------------------
 st.markdown("""
-    <style>
-        .main {
-            background-color: #f5f7fa;
-        }
-        .title {
-            color: #2c3e50;
-            text-align: center;
-            font-size: 36px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            color: #34495e;
-            text-align: center;
-            font-size: 20px;
-            margin-bottom: 30px;
-        }
-        .box {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0px 0px 12px rgba(0,0,0,0.1);
-        }
-    </style>
+<style>
+.box {
+    background-color: #f0f2f6;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #d0d4da;
+    margin-bottom: 20px;
+}
+h1 {
+    text-align: center;
+    color: #004080;
+}
+.result-ok {
+    background-color: #d4f8d4;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #89c789;
+    color: #006600;
+    font-size: 18px;
+}
+.result-bad {
+    background-color: #ffd6d6;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #cc7a7a;
+    color: #990000;
+    font-size: 18px;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# ------------------------------------
-# ⭐ Títol principal
-# ------------------------------------
-st.markdown('<div class="title">🧬 Diagnòstic de Fibrosi Quística amb IA</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Introdueix les dades del pacient i la IA farà una predicció.</div>', unsafe_allow_html=True)
+st.title("🧬 Diagnòstic de Fibrosi Quística amb IA")
 
-# ------------------------------------
-# ⭐ Carregar dataset
-# ------------------------------------
-df = pd.read_excel("dataset_fq.xlsx")
+st.markdown("Aquesta aplicació permet predir si un pacient té possible **Fibrosi Quística (FQ)** basant-se en paràmetres clínics.")
 
-# 🔧 Solució a l'error: convertir totes les columnes a numèric
-df = df.apply(pd.to_numeric, errors='coerce').fillna(0)
 
-# Comprovar columnes correctes
-required_cols = [
-    'edat','sexe','clor','mutacio','fev1','pancreas',
-    'pseudomonas','staphylococcus','haemophilus',
-    'burkholderia','stenotrophomonas','aspergillus',
-    'cap_infeccio','diagnostic'
-]
+# ---------------------------------------
+# CARREGA I NETEJA AUTOMÀTICA DEL DATASET
+# ---------------------------------------
+@st.cache_data
+def carregar_dataset(path):
+    df = pd.read_excel(path)
 
-missing = [c for c in required_cols if c not in df.columns]
-if missing:
-    st.error(f"❌ Falten columnes al dataset: {missing}")
-    st.stop()
+    mapeig = {
+        "ID Pacient": "id_pacient",
+        "Edat": "edat",
+        "Sexe": "sexe",
+        "Test Sudor Clor (concentracio de clorur en mmol/L)": "clor",
+        "Mutacio CFTR": "mutacio",
+        "FEV1 (Volum espiratori forcat en 1 segon, % predit)": "fev1",
+        "Insuficiencia Pancreatica": "pancreas",
+        "Pseudomonas": "pseudomonas",
+        "Staphylococcus": "staphylococcus",
+        "Haemophilus": "haemophilus",
+        "Burkholderia": "burkholderia",
+        "Stenotrophomonas": "stenotrophomonas",
+        "Aspergillus": "aspergillus",
+        "Cap": "cap_infeccio",
+        "FVC": "fvc",
+        "Hepatopatia": "hepatopatia",
+        "IMC": "imc",
+        "Nº Exarcebacions Any": "exacerbacions",
+        "Pes": "pes",
+        "Polips nasals": "polips",
+        "Reflux Gastroesofagic": "reflux",
+        "Saturacio O2": "saturacio",
+        "Sibilancies": "sibilancies",
+        "Sinusitis Cronica": "sinusitis",
+        "Diagnostic FQ IA": "diagnostic",
+        "Talla": "talla",
+        "Tos cronica": "tos"
+    }
 
-# ------------------------------------
-# ⭐ Entrenar model
-# ------------------------------------
-X = df.drop("diagnostic", axis=1)
+    df = df.rename(columns=mapeig)
+
+    # Convertim a numèrics
+    df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
+
+    return df
+
+
+df = carregar_dataset("dataset_fq.xlsx")
+
+# Model
+X = df.drop(columns=["diagnostic"])
 y = df["diagnostic"]
 
 model = RandomForestClassifier(n_estimators=200, random_state=42)
 model.fit(X, y)
 
-# ------------------------------------
-# ⭐ Formulari de dades del pacient
-# ------------------------------------
-st.markdown('<div class="box">', unsafe_allow_html=True)
+# -------------------------------
+# FORMULARI DE PREDICCIÓ
+# -------------------------------
+st.subheader("🔎 Introdueix les dades del pacient")
 
-st.subheader("📋 Dades del pacient")
+with st.form("predictor"):
+    col1, col2 = st.columns(2)
 
-edat = st.number_input("Edat", 0, 120, 10)
-sexe = st.selectbox("Sexe", ["Masculí (0)", "Femení (1)"])
-sexe = 0 if sexe == "Masculí (0)" else 1
+    with col1:
+        edat = st.number_input("Edat", 0, 100, 10)
+        sexe = st.selectbox("Sexe (0 = Dona, 1 = Home)", [0, 1])
+        clor = st.number_input("Clor (mmol/L)", 0, 200, 30)
+        mutacio = st.selectbox("Mutació CFTR (0 = No, 1 = Sí)", [0, 1])
+        fev1 = st.number_input("FEV1 (% predit)", 0, 150, 80)
+        pancreas = st.selectbox("Insuficiència Pancreàtica", [0, 1])
+        fvc = st.number_input("FVC", 0, 200, 100)
 
-clor = st.number_input("Clor en test de la suor (mmol/L)", 0, 200, 30)
-mutacio = st.selectbox("Mutació CFTR", ["No (0)", "Sí (1)"])
-mutacio = 1 if mutacio == "Sí (1)" else 0
+    with col2:
+        exacerb = st.number_input("Exacerbacions/Any", 0, 20, 0)
+        pes = st.number_input("Pes (kg)", 1, 150, 40)
+        imc = st.number_input("IMC", 10.0, 40.0, 18.0)
+        hepatopatia = st.selectbox("Hepatopatia", [0, 1])
+        saturacio = st.number_input("Saturació O2 (%)", 50, 100, 97)
+        talla = st.number_input("Talla (cm)", 30, 220, 150)
 
-fev1 = st.number_input("FEV1 (%)", 0, 150, 100)
+    st.write("### Infeccions bacterianes")
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        pseudomonas = st.selectbox("Pseudomonas", [0, 1])
+        aspergillus = st.selectbox("Aspergillus", [0, 1])
+        haemophilus = st.selectbox("Haemophilus", [0, 1])
+    with col4:
+        staphylococcus = st.selectbox("Staphylococcus", [0, 1])
+        burkholderia = st.selectbox("Burkholderia", [0, 1])
+        stenotrophomonas = st.selectbox("Stenotrophomonas", [0, 1])
+    with col5:
+        polips = st.selectbox("Pòlips Nasals", [0, 1])
+        reflux = st.selectbox("Reflux", [0, 1])
+        sinusitis = st.selectbox("Sinusitis", [0, 1])
 
-pancreas = st.selectbox("Insuficiència pancreàtica", ["No (0)", "Sí (1)"])
-pancreas = 1 if pancreas == "Sí (1)" else 0
+    tos = st.selectbox("Tos Crònica", [0, 1])
+    cap_infeccio = st.selectbox("Cap infecció", [0, 1])
 
-pseudomonas = st.selectbox("Pseudomonas", ["No (0)", "Sí (1)"])
-pseudomonas = 1 if pseudomonas == "Sí (1)" else 0
+    submit = st.form_submit_button("🔍 Predir Diagnòstic")
 
-staphylococcus = st.selectbox("Staphylococcus", ["No (0)", "Sí (1)"])
-staphylococcus = 1 if staphylococcus == "Sí (1)" else 0
 
-haemophilus = st.selectbox("Haemophilus", ["No (0)", "Sí (1)"])
-haemophilus = 1 if haemophilus == "Sí (1)" else 0
-
-burkholderia = st.selectbox("Burkholderia", ["No (0)", "Sí (1)"])
-burkholderia = 1 if burkholderia == "Sí (1)" else 0
-
-steno = st.selectbox("Stenotrophomonas", ["No (0)", "Sí (1)"])
-steno = 1 if steno == "Sí (1)" else 0
-
-asper = st.selectbox("Aspergillus", ["No (0)", "Sí (1)"])
-asper = 1 if asper == "Sí (1)" else 0
-
-cap_inf = st.selectbox("Cap infecció", ["No (0)", "Sí (1)"])
-cap_inf = 1 if cap_inf == "Sí (1)" else 0
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ------------------------------------
-# ⭐ Predicció
-# ------------------------------------
-if st.button("🔍 Fer diagnòstic", use_container_width=True):
-    dades_pacient = pd.DataFrame([[
-        edat, sexe, clor, mutacio, fev1, pancreas,
-        pseudomonas, staphylococcus, haemophilus,
-        burkholderia, steno, asper, cap_inf
+# -------------------------------
+# RESULTAT
+# -------------------------------
+if submit:
+    entrada = pd.DataFrame([[
+        0, edat, sexe, clor, mutacio, fev1, pancreas, pseudomonas,
+        staphylococcus, haemophilus, burkholderia, stenotrophomonas,
+        aspergillus, cap_infeccio, fvc, hepatopatia, imc, exacerb,
+        pes, polips, reflux, saturacio, sibilancies, sinusitis,
+        0, talla, tos
     ]], columns=X.columns)
 
-    pred = model.predict(dades_pacient)[0]
-    prob = model.predict_proba(dades_pacient)[0][1]
+    pred = model.predict(entrada)[0]
 
+    st.markdown("---")
     if pred == 1:
-        st.success(f"🟢 **Possible Fibrosi Quística** (probabilitat: {prob*100:.1f}%)")
+        st.markdown("<div class='result-bad'>⚠️ Possible diagnòstic de Fibrosi Quística</div>", unsafe_allow_html=True)
     else:
-        st.error(f"🔴 **No compatible amb Fibrosi Quística** (probabilitat: {prob*100:.1f}%)")
+        st.markdown("<div class='result-ok'>✅ No compatible amb Fibrosi Quística</div>", unsafe_allow_html=True)
