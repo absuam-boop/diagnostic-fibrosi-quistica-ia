@@ -1,166 +1,164 @@
 import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import unicodedata
 from sklearn.ensemble import RandomForestClassifier
 
-st.set_page_config(page_title="Diagnòstic Fibrosi Quística", layout="centered")
+st.set_page_config(page_title="Diagnòstic FQ (robust)", layout="centered")
 
-# -------------------------------
-# ESTILS CSS
-# -------------------------------
-st.markdown("""
-<style>
-.box {
-    background-color: #f0f2f6;
-    padding: 20px;
-    border-radius: 12px;
-    border: 1px solid #d0d4da;
-    margin-bottom: 20px;
+# -------------------------
+# Funció per normalitzar noms
+# -------------------------
+def normalize_name(s):
+    if not isinstance(s, str):
+        return ""
+    s = s.strip()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = s.lower()
+    # substituir tot el que no sigui lletra o número per underscore
+    import re
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s
+
+# -------------------------
+# Mapatge per paraules clau a noms canònics
+# -------------------------
+keyword_map = {
+    "edat": "edat",
+    "sexe": "sexe",
+    "clor": "clor",
+    "suor": "clor",
+    "sudor": "clor",
+    "mutacio": "mutacio",
+    "cftr": "mutacio",
+    "fev1": "fev1",
+    "insuficiencia_pancreatica": "pancreas",
+    "pancrea": "pancreas",
+    "pancreas": "pancreas",
+    "pseudomon": "pseudomonas",
+    "staphyl": "staphylococcus",
+    "staphylococcus": "staphylococcus",
+    "haemophil": "haemophilus",
+    "haemophilus": "haemophilus",
+    "burk": "burkholderia",
+    "stenotrophomonas": "stenotrophomonas",
+    "asperg": "aspergillus",
+    "cap": "cap_infeccio",
+    "fvc": "fvc",
+    "hepat": "hepatopatia",
+    "imc": "imc",
+    "exacer": "exacerbacions",
+    "exarce": "exacerbacions",
+    "pes": "pes",
+    "polip": "polips",
+    "reflux": "reflux",
+    "satur": "saturacio",
+    "sibil": "sibilancies",
+    "sinus": "sinusitis",
+    "diagnostic": "diagnostic",
+    "diagnosticfq": "diagnostic",
+    "diagnosticfqia": "diagnostic",
+    "talla": "talla",
+    "tos": "tos"
 }
-h1 {
-    text-align: center;
-    color: #004080;
-}
-.result-ok {
-    background-color: #d4f8d4;
-    padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #89c789;
-    color: #006600;
-    font-size: 18px;
-}
-.result-bad {
-    background-color: #ffd6d6;
-    padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #cc7a7a;
-    color: #990000;
-    font-size: 18px;
-}
-</style>
-""", unsafe_allow_html=True)
 
-st.title("🧬 Diagnòstic de Fibrosi Quística amb IA")
+# -------------------------
+# Carrega del dataset (intent automàtic)
+# -------------------------
+st.title("🧬 Diagnòstic FQ — càrrega i normalització automàtiques")
 
-st.markdown("Aquesta aplicació permet predir si un pacient té possible **Fibrosi Quística (FQ)** basant-se en paràmetres clínics.")
+uploaded = st.file_uploader("Puja el fitxer dataset_fq.xlsx (o fes servir el del repositori)", type=["xlsx"])
+if uploaded is None:
+    # intentem llegir directament pel nom (per a Streamlit Cloud si ja està pujat)
+    try:
+        df_raw = pd.read_excel("dataset_fq.xlsx")
+    except Exception:
+        st.warning("Puja l'arxiu 'dataset_fq.xlsx' o assegura't que està al repositori.")
+        st.stop()
+else:
+    df_raw = pd.read_excel(uploaded)
 
+st.write("Columnes originals detectades:")
+st.write(list(df_raw.columns))
 
-# ---------------------------------------
-# CARREGA I NETEJA AUTOMÀTICA DEL DATASET
-# ---------------------------------------
-@st.cache_data
-def carregar_dataset(path):
-    df = pd.read_excel(path)
+# Normalitzem els noms
+norm_cols = [normalize_name(c) for c in df_raw.columns]
+mapping = dict(zip(df_raw.columns, norm_cols))
+st.write("Columnes normalitzades (temporals):")
+st.write(mapping)
 
-    mapeig = {
-        "ID Pacient": "id_pacient",
-        "Edat": "edat",
-        "Sexe": "sexe",
-        "Test Sudor Clor (concentracio de clorur en mmol/L)": "clor",
-        "Mutacio CFTR": "mutacio",
-        "FEV1 (Volum espiratori forcat en 1 segon, % predit)": "fev1",
-        "Insuficiencia Pancreatica": "pancreas",
-        "Pseudomonas": "pseudomonas",
-        "Staphylococcus": "staphylococcus",
-        "Haemophilus": "haemophilus",
-        "Burkholderia": "burkholderia",
-        "Stenotrophomonas": "stenotrophomonas",
-        "Aspergillus": "aspergillus",
-        "Cap": "cap_infeccio",
-        "FVC": "fvc",
-        "Hepatopatia": "hepatopatia",
-        "IMC": "imc",
-        "Nº Exarcebacions Any": "exacerbacions",
-        "Pes": "pes",
-        "Polips nasals": "polips",
-        "Reflux Gastroesofagic": "reflux",
-        "Saturacio O2": "saturacio",
-        "Sibilancies": "sibilancies",
-        "Sinusitis Cronica": "sinusitis",
-        "Diagnostic FQ IA": "diagnostic",
-        "Talla": "talla",
-        "Tos cronica": "tos"
-    }
+# Mapatge intel·ligent a noms canònics
+final_cols = {}
+used = set()
+for orig, norm in mapping.items():
+    chosen = None
+    # busquem paraules clau dins del nom normalitzat
+    for key, canon in keyword_map.items():
+        if key in norm and canon not in used:
+            chosen = canon
+            break
+    # si no trobem cap coincidència, fem servir el nom normalitzat tal qual (si no xoca)
+    if chosen is None:
+        chosen = norm
+    final_cols[orig] = chosen
+    used.add(chosen)
 
-    df = df.rename(columns=mapeig)
+st.write("Mapeig final (original -> canònic):")
+st.write(final_cols)
 
-    # Convertim a numèrics
-    df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
+# Apliquem el renombrament
+df = df_raw.rename(columns=final_cols)
 
-    return df
+# Convertim a numèric i omplim NaN
+df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
 
+st.write("Columnes després del renombrament i neteja:")
+st.write(list(df.columns))
 
-df = carregar_dataset("dataset_fq.xlsx")
+# Comprovació de columnes obligatòries
+required = ["edat","sexe","clor","mutacio","fev1","pancreas",
+            "pseudomonas","staphylococcus","haemophilus","burkholderia",
+            "stenotrophomonas","aspergillus","cap_infeccio","diagnostic"]
 
-# Model
+missing = [c for c in required if c not in df.columns]
+if missing:
+    st.error(f"❌ Falten columnes desprès de la normalització: {missing}")
+    st.stop()
+
+# Tot correcte: entrenem model
 X = df.drop(columns=["diagnostic"])
 y = df["diagnostic"]
 
 model = RandomForestClassifier(n_estimators=200, random_state=42)
 model.fit(X, y)
 
-# -------------------------------
-# FORMULARI DE PREDICCIÓ
-# -------------------------------
-st.subheader("🔎 Introdueix les dades del pacient")
+st.success("✅ Dataset validat i model entrenat correctament")
 
-with st.form("predictor"):
-    col1, col2 = st.columns(2)
+# -------------------------
+# Formulari per predicció (ordenem amb les columnes de X)
+# -------------------------
+st.subheader("🔎 Introdueix dades del pacient")
 
-    with col1:
-        edat = st.number_input("Edat", 0, 100, 10)
-        sexe = st.selectbox("Sexe (0 = Dona, 1 = Home)", [0, 1])
-        clor = st.number_input("Clor (mmol/L)", 0, 200, 30)
-        mutacio = st.selectbox("Mutació CFTR (0 = No, 1 = Sí)", [0, 1])
-        fev1 = st.number_input("FEV1 (% predit)", 0, 150, 80)
-        pancreas = st.selectbox("Insuficiència Pancreàtica", [0, 1])
-        fvc = st.number_input("FVC", 0, 200, 100)
-
-    with col2:
-        exacerb = st.number_input("Exacerbacions/Any", 0, 20, 0)
-        pes = st.number_input("Pes (kg)", 1, 150, 40)
-        imc = st.number_input("IMC", 10.0, 40.0, 18.0)
-        hepatopatia = st.selectbox("Hepatopatia", [0, 1])
-        saturacio = st.number_input("Saturació O2 (%)", 50, 100, 97)
-        talla = st.number_input("Talla (cm)", 30, 220, 150)
-
-    st.write("### Infeccions bacterianes")
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        pseudomonas = st.selectbox("Pseudomonas", [0, 1])
-        aspergillus = st.selectbox("Aspergillus", [0, 1])
-        haemophilus = st.selectbox("Haemophilus", [0, 1])
-    with col4:
-        staphylococcus = st.selectbox("Staphylococcus", [0, 1])
-        burkholderia = st.selectbox("Burkholderia", [0, 1])
-        stenotrophomonas = st.selectbox("Stenotrophomonas", [0, 1])
-    with col5:
-        polips = st.selectbox("Pòlips Nasals", [0, 1])
-        reflux = st.selectbox("Reflux", [0, 1])
-        sinusitis = st.selectbox("Sinusitis", [0, 1])
-
-    tos = st.selectbox("Tos Crònica", [0, 1])
-    cap_infeccio = st.selectbox("Cap infecció", [0, 1])
-
-    submit = st.form_submit_button("🔍 Predir Diagnòstic")
-
-
-# -------------------------------
-# RESULTAT
-# -------------------------------
-if submit:
-    entrada = pd.DataFrame([[
-        0, edat, sexe, clor, mutacio, fev1, pancreas, pseudomonas,
-        staphylococcus, haemophilus, burkholderia, stenotrophomonas,
-        aspergillus, cap_infeccio, fvc, hepatopatia, imc, exacerb,
-        pes, polips, reflux, saturacio, sibilancies, sinusitis,
-        0, talla, tos
-    ]], columns=X.columns)
-
-    pred = model.predict(entrada)[0]
-
-    st.markdown("---")
-    if pred == 1:
-        st.markdown("<div class='result-bad'>⚠️ Possible diagnòstic de Fibrosi Quística</div>", unsafe_allow_html=True)
+# creem inputs segons l'ordre de X.columns
+inputs = {}
+for col in X.columns:
+    label = col.replace("_", " ").capitalize()
+    # si és binari 0/1 fem selectbox, si és continu fem number_input
+    if col in ["sex", "sexe","mutacio","pancreas","pseudomonas","staphylococcus","haemophilus",
+               "burkholderia","stenotrophomonas","aspergillus","cap_infeccio","polips","reflux","sibilancies","sinusitis","tos"]:
+        inputs[col] = st.selectbox(label, [0,1], index=1)
     else:
-        st.markdown("<div class='result-ok'>✅ No compatible amb Fibrosi Quística</div>", unsafe_allow_html=True)
+        # límits generals; l'usuari pot adaptar-ho
+        inputs[col] = st.number_input(label, value=0.0)
+
+# Build DataFrame d'entrada amb l'ordre correcte
+entrada = pd.DataFrame([[inputs[c] for c in X.columns]], columns=X.columns)
+
+if st.button("🔍 Fer diagnòstic"):
+    pred = model.predict(entrada)[0]
+    prob = model.predict_proba(entrada)[0][1]
+    if pred == 1:
+        st.error(f"⚠️ Possible Fibrosi Quística — probabilitat {prob*100:.1f}%")
+    else:
+        st.success(f"✅ No compatible amb Fibrosi Quística — probabilitat {prob*100:.1f}%")
