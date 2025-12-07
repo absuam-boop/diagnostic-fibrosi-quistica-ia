@@ -10,7 +10,7 @@ st.write("Introdueix les dades del pacient i la IA estimarà si pot patir Fibros
 # -------------------------------------------------------------------
 # 1. LLEGIR DATASET
 # -------------------------------------------------------------------
-df = pd.read_excel("dataset_fq_definitiu.xlsx")
+df = pd.read_excel("dataset_fq.xlsx")
 
 # Separar X i y
 y = df["Diagnostic FQ IA"]
