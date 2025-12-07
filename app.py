@@ -44,6 +44,9 @@ st.markdown('<div class="subtitle">Introdueix les dades del pacient i la IA far�
 # ------------------------------------
 df = pd.read_excel("dataset_fq.xlsx")
 
+# 🔧 Solució a l'error: convertir totes les columnes a numèric
+df = df.apply(pd.to_numeric, errors='coerce').fillna(0)
+
 # Comprovar columnes correctes
 required_cols = [
     'edat','sexe','clor','mutacio','fev1','pancreas',
