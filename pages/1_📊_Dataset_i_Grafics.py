@@ -129,4 +129,3 @@ else:
     st.info("Necessites la columna 'diagnostic' per calcular importància i comparar grups.")
 
 st.markdown("---")
-st.write("Si vols altres gràfics (histogrames, comparacions concretes), digues-me quins i els afegeixo.")
